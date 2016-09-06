@@ -33,18 +33,21 @@ public class Endpoint {
 
     private String event = "all";
 
+    private String secretKey;
+    
     private Integer timeout = DEFAULT_TIMEOUT;
 
     private Integer loglines = 0;
 
     @DataBoundConstructor
-    public Endpoint(Protocol protocol, String url, String event, Format format, Integer timeout, Integer loglines) {
+    public Endpoint(Protocol protocol, String url, String event, Format format, Integer timeout, Integer loglines, String secretKey) {
         setProtocol( protocol );
         setUrl( url );
         setEvent( event );
         setFormat( format );
         setTimeout( timeout );
         setLoglines( loglines );
+        setSecretKey( secretKey );
     }
 
     public int getTimeout() {
@@ -69,6 +72,14 @@ public class Endpoint {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+    
+    public String getSecretKey() {
+    	return secretKey;
+    }
+    
+    public void setSecretKey(String secretKey) {
+    	this.secretKey = secretKey;
     }
 
     public String getEvent (){

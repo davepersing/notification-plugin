@@ -41,6 +41,7 @@ import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -56,15 +57,16 @@ public class ProtocolTest extends TestCase {
     private final String method;
     private final String body;
     private final String userInfo;
+    private final String authHeader;
 
     Request(HttpServletRequest request) throws IOException {
       this.url = request.getRequestURL().toString();
       this.method = request.getMethod();
       this.body = CharStreams.toString(request.getReader());
-      String auth = request.getHeader("Authorization");
-      this.userInfo = (null == auth)
+      this.authHeader = request.getHeader("Authorization");
+      this.userInfo = (null == this.authHeader)
               ? null
-              : new String(DatatypeConverter.parseBase64Binary(auth.split(" ")[1])) + "@";
+              : new String(DatatypeConverter.parseBase64Binary(this.authHeader.split(" ")[1])) + "@";
     }
 
     Request(String url, String method, String body) {
@@ -72,6 +74,7 @@ public class ProtocolTest extends TestCase {
       this.method = method;
       this.body = body;
       this.userInfo = null;
+      this.authHeader = null;
     }
 
     @Override
@@ -111,6 +114,10 @@ public class ProtocolTest extends TestCase {
       else {
         return url.replaceFirst("^http://", "http://" + userInfo);
       }
+    }
+    
+    public String getAuthHeader() {
+    	return authHeader;
     }
   }
 
@@ -216,10 +223,26 @@ public class ProtocolTest extends TestCase {
     assertTrue(requests.isEmpty());
 
     String uri = urlFactory.getUrl("/realpath");
-    Protocol.HTTP.send(uri, "Hello".getBytes(),30000, true);
+    Protocol.HTTP.send(uri, "Hello".getBytes(), 30000, true, null);
 
     assertEquals(new Request(uri, "POST", "Hello"), requests.take());
     assertTrue(requests.isEmpty());
+  }
+  
+  public void testHttpPostWithSignedTokenAuth() throws Exception {
+	  BlockingQueue<Request> requests = new LinkedBlockingQueue<Request>();
+	  
+	  UrlFactory urlFactory = startSecureServer(new RecordingServlet(requests), "/realpath", "");
+	  
+	  assertTrue(requests.isEmpty());
+	  
+	  String uri = urlFactory.getUrl("/realpath");
+	  Protocol.HTTP.send(uri,  "Hello".getBytes(), 30000, true, "test");
+	  //3fe5f2527d6baebca13b6ebc46112dc8270e1c86
+	  
+	  Request theRequest = requests.take();
+	  assertTrue(requests.isEmpty());
+	  assertEquals("Bearer 3fe5f2527d6baebca13b6ebc46112dc8270e1c86", theRequest.getAuthHeader());
   }
 
    public void testHttpPostWithBasicAuth() throws Exception {
@@ -230,7 +253,7 @@ public class ProtocolTest extends TestCase {
     assertTrue(requests.isEmpty());
 
     String uri = urlFactory.getUrl("/realpath");
-    Protocol.HTTP.send(uri, "Hello".getBytes(),30000, true);
+    Protocol.HTTP.send(uri, "Hello".getBytes(), 30000, true, null);
 
     Request theRequest = requests.take();
     assertTrue(requests.isEmpty());
@@ -248,7 +271,7 @@ public class ProtocolTest extends TestCase {
     assertTrue(requests.isEmpty());
 
     String uri = redirectorUrlFactory.getUrl("/path");
-    Protocol.HTTP.send(uri, "RedirectMe".getBytes(),30000, true);
+    Protocol.HTTP.send(uri, "RedirectMe".getBytes(), 30000, true, null);
 
     assertEquals(new Request(uri, "POST", "RedirectMe"), requests.take());
     assertEquals(new Request(redirectUri, "POST", "RedirectMe"), requests.take());

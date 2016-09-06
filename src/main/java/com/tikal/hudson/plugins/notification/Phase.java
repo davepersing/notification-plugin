@@ -45,7 +45,8 @@ public enum Phase {
                     target.getProtocol().send(expandedUrl,
                                               target.getFormat().serialize(jobState),
                                               target.getTimeout(),
-                                              target.isJson());
+                                              target.isJson(),
+                                              target.getSecretKey());
                 } catch (Throwable error) {
                     error.printStackTrace( listener.error( String.format( "Failed to notify endpoint '%s'", target )));
                     listener.getLogger().println( String.format( "Failed to notify endpoint '%s' - %s: %s",

@@ -64,6 +64,13 @@
                                     </f:entry>
                                 </td>
                             </tr>
+                            <tr>
+                            	<td>
+                            		<f:entry title="Secret Key" description="Secret key used to create signature for Authorization header. Leave blank if using HTTP Basic Auth." field="secretKey">
+                            			<f:password name="secretKey" value="${endpoint.secretKey}" default="" />
+                            		</f:entry>
+                            	</td>
+                            </tr>
                         </table>
                     </f:entry>
                     <f:repeatableDeleteButton value="${%Delete}" />

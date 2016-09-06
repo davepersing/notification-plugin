@@ -15,7 +15,9 @@ package com.tikal.hudson.plugins.notification;
 
 
 import java.io.IOException;
+
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
@@ -26,15 +28,19 @@ import java.net.Proxy;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.URL;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 
+import javax.crypto.spec.SecretKeySpec;
+
+import javax.crypto.Mac;
 import javax.xml.bind.DatatypeConverter;
-
 
 public enum Protocol {
 
     UDP {
         @Override
-        protected void send(String url, byte[] data, int timeout, boolean isJson) throws IOException {
+        protected void send(String url, byte[] data, int timeout, boolean isJson, String secretKey) throws IOException {
             HostnamePort hostnamePort = HostnamePort.parseUrl(url);
             DatagramSocket socket = new DatagramSocket();
             DatagramPacket packet = new DatagramPacket(data, data.length, InetAddress.getByName(hostnamePort.hostname), hostnamePort.port);
@@ -43,7 +49,7 @@ public enum Protocol {
     },
     TCP {
         @Override
-        protected void send(String url, byte[] data, int timeout, boolean isJson) throws IOException {
+        protected void send(String url, byte[] data, int timeout, boolean isJson, String secretKey) throws IOException {
             HostnamePort hostnamePort = HostnamePort.parseUrl(url);
             SocketAddress endpoint = new InetSocketAddress(InetAddress.getByName(hostnamePort.hostname), hostnamePort.port);
             Socket socket = new Socket();
@@ -57,7 +63,7 @@ public enum Protocol {
     },
     HTTP {
         @Override
-        protected void send(String url, byte[] data, int timeout, boolean isJson) throws IOException {
+        protected void send(String url, byte[] data, int timeout, boolean isJson, String secretKey) throws IOException {
             URL targetUrl = new URL(url);
             if (!targetUrl.getProtocol().startsWith("http")) {
               throw new IllegalArgumentException("Not an http(s) url: " + url);
@@ -91,6 +97,15 @@ public enum Protocol {
               String authorizationHeader = "Basic " + b64UserInfo;
               connection.setRequestProperty("Authorization", authorizationHeader);
             }
+            
+            // Create authorization header
+            if (!isEmpty(secretKey)) {
+            	String strData = new String(data);
+            	String signature = createSignature(strData, secretKey);
+            	String authorizationHeader = "Bearer " + signature;
+            	connection.setRequestProperty("Authorization", authorizationHeader);
+            }
+            
             connection.setFixedLengthStreamingMode(data.length);
             connection.setDoInput(true);
             connection.setDoOutput(true);
@@ -115,7 +130,7 @@ public enum Protocol {
               if (307 == connection.getResponseCode()) {
                 String location = connection.getHeaderField("Location");
                 connection.disconnect();
-                send(location, data,timeout, isJson);
+                send(location, data,timeout, isJson, secretKey);
               } else {
                 connection.disconnect();
               }
@@ -135,8 +150,32 @@ public enum Protocol {
     };
 
 
-    protected abstract void send(String url, byte[] data, int timeout, boolean isJson) throws IOException;
+    protected abstract void send(String url, byte[] data, int timeout, boolean isJson, String secretKey) throws IOException;
 
+    private static String createSignature(String payload, String secretKey) {
+    	String digest = null;
+		try {
+			Mac mac = null;
+			mac = Mac.getInstance("HmacSHA1");
+	
+	    	SecretKeySpec secret = new SecretKeySpec(secretKey.getBytes(), "HmacSHA1");
+	    	mac.init(secret);
+	    	byte[] bytes = mac.doFinal(payload.getBytes());
+	    	BigInteger hash = new BigInteger(1, bytes);
+	    	digest = hash.toString(16);
+	    	
+	    	if (digest.length() % 2 != 0) {
+	    		digest = "0" + digest;
+	    	}
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InvalidKeyException e) {
+			e.printStackTrace();
+		}
+    	return digest;
+    }
+    
     public void validateUrl(String url) {
         try {
             HostnamePort hnp = HostnamePort.parseUrl(url);
